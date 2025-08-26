@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login – DistriMais</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/xp.css" />
+  </head>
+  <body class="bg-slate-50 text-slate-900">
+    <!-- Cabeçalho -->
+    <header class="bg-white border-b">
+      <div class="max-w-4xl mx-auto px-4 py-5 flex items-center justify-between">
+        <h1 class="text-2xl font-bold tracking-tight">
+          <span class="text-blue-800">Distri</span><span class="text-emerald-600">Mais</span>
+          <span class="text-slate-500 text-base font-normal"> – Gerenciador de Tarefas</span>
+        </h1>
+      </div>
+    </header>
+
+    <!-- Conteúdo -->
+    <main class="max-w-4xl mx-auto px-4 py-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Esquerda: Usuário básico -->
+        <section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+          <h2 class="text-lg font-semibold mb-2">
+            Entrar como <span class="font-bold">Usuário básico</span>
+          </h2>
+          <p class="text-slate-600 text-sm mb-6">
+            Acesso sem credenciais. Pode adicionar tarefas, mas não editar ou excluir.
+          </p>
+
+          <form method="POST" action="/login" class="flex items-center gap-3">
+            <input type="hidden" name="action" value="guest" />
+            <input type="hidden" name="next" id="next-guest" value="/app" />
+            <button
+              class="px-4 py-2 rounded-md bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800">
+              Continuar como usuário básico
+            </button>
+          </form>
+        </section>
+
+        <!-- Direita: único form (Supervisor/Admin) -->
+        <section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+          <h2 class="text-lg font-semibold mb-2">Entrar</h2>
+          <p class="text-slate-600 text-sm mb-4">
+            Escolha o tipo de acesso e informe suas credenciais.
+          </p>
+
+          <form method="POST" action="/login" class="grid grid-cols-1 gap-4">
+            <!-- Rádio: escolhe role -->
+            <div class="flex items-center gap-6">
+              <label class="flex items-center gap-2 text-sm">
+                <input type="radio" name="action" value="supervisor" checked />
+                Supervisor
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <input type="radio" name="action" value="admin" />
+                Admin
+              </label>
+            </div>
+
+            <input type="hidden" name="next" id="next-pass" value="/app" />
+
+            <div>
+              <label for="login-username" class="block text-sm font-medium mb-1">Usuário</label>
+              <input
+                id="login-username" name="username" autocomplete="username" required
+                class="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 shadow-sm
+                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            </div>
+
+            <div>
+              <label for="login-password" class="block text-sm font-medium mb-1">Senha</label>
+              <input
+                id="login-password" name="password" type="password" autocomplete="current-password" required
+                class="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 shadow-sm
+                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            </div>
+
+            <div class="pt-1">
+              <button
+                class="px-4 py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
+                Entrar
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      // Propaga ?next= para ambos os formulários
+      (function(){
+        const params = new URLSearchParams(window.location.search);
+        const next = params.get('next') || '/app';
+        document.getElementById('next-guest').value = next;
+        document.getElementById('next-pass').value = next;
+      })();
+    </script>
+  </body>
+</html>
