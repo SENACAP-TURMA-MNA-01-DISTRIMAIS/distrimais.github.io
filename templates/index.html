@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DistriMais – Gerenciador de Tarefas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/xp.css" />
+  </head>
+  <body class="bg-slate-50 text-slate-800 xp">
+    <header class="border-b bg-white">
+      <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <h1 class="text-2xl font-bold tracking-tight">
+          <span class="text-blue-800">Distri</span><span class="text-emerald-600">Mais</span>
+          <span class="text-slate-500 text-base font-normal"> – Gerenciador de Tarefas</span>
+        </h1>
+        <div class="flex items-center gap-3">
+          <span id="userBadge" class="text-sm text-slate-600"></span>
+          <a href="/logout" class="px-3 py-1.5 rounded-md bg-slate-900 text-white text-sm hover:bg-slate-800">Sair</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6">
+      <!-- Navegação de abas -->
+      <nav class="mb-6">
+        <div class="inline-flex rounded-xl border bg-white p-1 shadow-sm">
+          <button type="button" data-tab="dashboard" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-slate-900 text-white">Visão geral</button>
+          <button type="button" data-tab="tasks" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100">Tarefas</button>
+          <button type="button" data-tab="add" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100">Adicionar</button>
+          <button type="button" data-tab="admin" id="adminTabBtn" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 hidden">ADMIN</button>
+        </div>
+      </nav>
+
+      <!-- Visão geral -->
+      <section id="tab-dashboard" class="tab-panel grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-2xl shadow p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Tarefas por setor</h2>
+            <button id="refreshDashboard" class="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">Atualizar</button>
+          </div>
+          <canvas id="sectorChart" width="400" height="300" aria-label="Gráfico de tarefas por setor" role="img"></canvas>
+          <p id="emptySectorMsg" class="text-sm text-slate-500 mt-4 hidden">Sem dados ainda. Adicione sua primeira tarefa!</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Tarefas recentes</h2>
+            <button id="refreshRecent" class="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">Atualizar</button>
+          </div>
+          <ul id="recentList" class="divide-y"></ul>
+          <p id="emptyRecentMsg" class="text-sm text-slate-500 mt-2 hidden">Nada por aqui ainda.</p>
+        </div>
+      </section>
+
+      <!-- Tarefas -->
+      <section id="tab-tasks" class="tab-panel hidden">
+        <div class="bg-white rounded-2xl shadow p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Todas as tarefas</h2>
+            <div class="flex flex-wrap items-center gap-2">
+              <input id="searchQ" type="text" placeholder="Buscar por título/descrição/responsável" class="border rounded-md px-3 py-1.5 text-sm" />
+              <select id="filterPriority" class="border rounded-md px-2 py-1.5 text-sm">
+                <option value="">Prioridade</option>
+                <option value="alta">Alta</option>
+                <option value="media">Média</option>
+                <option value="baixa">Baixa</option>
+              </select>
+              <select id="filterSector" class="border rounded-md px-2 py-1.5 text-sm min-w-[160px]"></select>
+              <select id="filterStatus" class="border rounded-md px-2 py-1.5 text-sm">
+                <option value="">Todos os status</option>
+                <option value="em_andamento">Em andamento</option>
+                <option value="concluida">Concluída</option>
+                <option value="atrasada">Atrasada</option>
+              </select>
+              <input id="filterDueFrom" type="date" class="border rounded-md px-2 py-1.5 text-sm" />
+              <span class="text-sm text-slate-500">até</span>
+              <input id="filterDueTo" type="date" class="border rounded-md px-2 py-1.5 text-sm" />
+              <button id="btnFilter" class="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">Filtrar</button>
+              <button id="btnClear" class="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">Limpar</button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-100 text-slate-700">
+                <tr>
+                  <th class="text-left p-3">ID</th>
+                  <th class="text-left p-3">Título</th>
+                  <th class="text-left p-3">Responsável</th>
+                  <th class="text-left p-3">Setor</th>
+                  <th class="text-left p-3">Prioridade</th>
+                  <th class="text-left p-3">Status</th>
+                  <th class="text-left p-3">Prazo</th>
+                  <th class="text-left p-3">Criado</th>
+                  <th class="text-left p-3">Atualizado</th>
+                  <th class="text-left p-3">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tasksTbody" class="divide-y"></tbody>
+            </table>
+          </div>
+
+          <div class="mt-4 flex items-center justify-end gap-2">
+            <button id="prevPage" class="px-3 py-1.5 rounded-md border text-sm disabled:opacity-40">Anterior</button>
+            <span id="pageInfo" class="text-sm text-slate-600"></span>
+            <button id="nextPage" class="px-3 py-1.5 rounded-md border text-sm disabled:opacity-40">Próxima</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Adicionar -->
+      <section id="tab-add" class="tab-panel hidden">
+        <div class="bg-white rounded-2xl shadow p-5 max-w-2xl">
+          <h2 class="text-lg font-semibold mb-4">Adicionar nova tarefa</h2>
+          <form id="addForm" class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium mb-1" for="title">Título *</label>
+              <input id="title" name="title" required class="w-full border rounded-md px-3 py-2" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for="description">Descrição</label>
+              <textarea id="description" name="description" rows="3" class="w-full border rounded-md px-3 py-2"></textarea>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium mb-1" for="sector">Setor *</label>
+                <select id="sector" name="sector" required class="w-full border rounded-md px-3 py-2"></select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1" for="priority">Prioridade *</label>
+                <select id="priority" name="priority" required class="w-full border rounded-md px-3 py-2">
+                  <option value="">Selecione</option>
+                  <option value="alta">Alta</option>
+                  <option value="media">Média</option>
+                  <option value="baixa">Baixa</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium mb-1" for="due_date">Data limite *</label>
+                <input id="due_date" name="due_date" type="date" required class="w-full border rounded-md px-3 py-2" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1" for="status">Status *</label>
+                <select id="status" name="status" required class="w-full border rounded-md px-3 py-2">
+                  <option value="em_andamento" selected>Em andamento</option>
+                  <option value="concluida">Concluída</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for="responsavel">Responsável *</label>
+              <input id="responsavel" name="responsavel" required class="w-full border rounded-md px-3 py-2" />
+            </div>
+            <div class="pt-2">
+              <button class="px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Adicionar</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- ADMIN -->
+      <section id="tab-admin" class="tab-panel hidden">
+        <div class="space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold">Administração</h2>
+            <div class="flex gap-2">
+              <button id="btnExportAccess" class="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">Exportar acessos (CSV)</button>
+              <button id="btnExportAudit" class="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">Exportar alterações (CSV)</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white rounded-2xl shadow p-4"><div class="text-xs text-slate-500">Total de acessos</div><div id="m-total-accesses" class="text-2xl font-semibold mt-1">—</div></div>
+            <div class="bg-white rounded-2xl shadow p-4"><div class="text-xs text-slate-500">Alterações registradas</div><div id="m-total-changes" class="text-2xl font-semibold mt-1">—</div></div>
+            <div class="bg-white rounded-2xl shadow p-4"><div class="text-xs text-slate-500">Sessões ativas</div><div id="m-active-total" class="text-2xl font-semibold mt-1">—</div><div id="m-active-breakdown" class="text-xs text-slate-500">admin: 0 · supervisor: 0 · básico: 0</div></div>
+            <div class="bg-white rounded-2xl shadow p-4"><div class="text-xs text-slate-500">Senhas ativas</div><div id="m-passwords" class="text-2xl font-semibold mt-1">—</div></div>
+          </div>
+
+          <!-- Gestão de Supervisores -->
+          <div class="bg-white rounded-2xl shadow p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-base font-semibold">Gestão de supervisores</h3>
+              <div class="flex items-center gap-2">
+                <button id="btnReloadSup" class="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">Recarregar</button>
+              </div>
+            </div>
+
+            <form id="supForm" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <input id="supUser" class="border rounded-md px-3 py-2" placeholder="novo usuário" required />
+              <input id="supPass" type="password" class="border rounded-md px-3 py-2" placeholder="senha" required />
+              <button class="px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Criar supervisor</button>
+            </form>
+
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead class="bg-slate-100 text-slate-700"><tr>
+                  <th class="text-left p-3">Usuário</th>
+                  <th class="text-left p-3">Criado</th>
+                  <th class="text-left p-3">Atualizado</th>
+                  <th class="text-left p-3">Ativo</th>
+                  <th class="text-left p-3">Online</th>
+                  <th class="text-left p-3">Ações</th>
+                </tr></thead>
+                <tbody id="supTbody" class="divide-y"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl shadow p-5">
+            <h3 class="text-base font-semibold mb-3">Últimos acessos</h3>
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead class="bg-slate-100 text-slate-700"><tr><th class="text-left p-3">Data/Hora</th><th class="text-left p-3">Ação</th><th class="text-left p-3">Usuário</th><th class="text-left p-3">Papel</th><th class="text-left p-3">IP</th><th class="text-left p-3">Agente</th></tr></thead>
+                <tbody id="accessesTbody" class="divide-y"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl shadow p-5">
+            <h3 class="text-base font-semibold mb-3">Últimas alterações</h3>
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead class="bg-slate-100 text-slate-700"><tr><th class="text-left p-3">Data/Hora</th><th class="text-left p-3">Ação</th><th class="text-left p-3">ID Tarefa</th><th class="text-left p-3">Usuário</th><th class="text-left p-3">Papel</th><th class="text-left p-3">Detalhes</th></tr></thead>
+                <tbody id="auditsTbody" class="divide-y"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div id="toast" class="fixed bottom-4 right-4 hidden"></div>
+    </main>
+
+    <script>
+      // -------------------------- Estado --------------------------
+      const state = { me: { role: 'guest', username: null }, isAdmin: false, canEdit: false, chart: null, page: 1, pageSize: 20,
+        lastQuery: { q: '', sector: '', priority: '', status: '', due_from: '', due_to: '' }, sectors: [] };
+
+      // -------------------------- Utils ---------------------------
+      const $ = (sel) => document.querySelector(sel);
+      function escapeHtml(str = '') { return str.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
+      function showToast(msg, type='ok'){ const el=$('#toast'); el.className='fixed bottom-4 right-4 z-50 max-w-sm text-sm rounded-lg px-4 py-3 shadow ' + (type==='err'?'bg-red-600 text-white':'bg-slate-900 text-white'); el.textContent=msg; el.classList.remove('hidden'); setTimeout(()=>el.classList.add('hidden'),2500); }
+      function fmtDate(iso){ if(!iso) return '-'; try{ return new Date(iso).toLocaleString(); }catch{ return iso; }}
+      function fmtDateOnly(d){ if(!d) return '-'; const [y,m,da]=(d+'').split('-'); if(!y||!m||!da) return d; return `${da}/${m}/${y}`; }
+      function priorityBadge(p){ const map={ alta:'bg-red-100 text-red-700', media:'bg-amber-100 text-amber-700', baixa:'bg-emerald-100 text-emerald-700' }; const cls=map[p]||'bg-slate-100 text-slate-700'; return `<span class="px-2 py-0.5 rounded text-xs ${cls}">${p||'-'}</span>`; }
+      function statusBadge(s){ const label = s==='concluida'?'concluída':(s==='em_andamento'?'em andamento':(s||'-')); const map={ em_andamento:'bg-blue-100 text-blue-700', concluida:'bg-emerald-100 text-emerald-700', atrasada:'bg-red-100 text-red-700' }; const cls=map[s]||'bg-slate-100 text-slate-700'; return `<span class="px-2 py-0.5 rounded text-xs ${cls}">${label}</span>`; }
+      function sectorOptions(selected=''){ return state.sectors.map(s=>`<option value="${s.code}" ${s.code===selected?'selected':''}>${escapeHtml(s.label)}</option>`).join(''); }
+      async function api(path, opts={}){ const res=await fetch(path,{ headers:{'Content-Type':'application/json'}, credentials:'same-origin', ...opts}); if(res.status===401){ window.location.href='/login'; throw new Error('Unauthorized'); } if(!res.ok){ try{ const j=await res.json(); throw new Error(j.error||`Erro ${res.status}`);}catch(e){ throw new Error(`Erro ${res.status}`);} } try{ return await res.json(); }catch{ return {}; } }
+
+      // -------------------------- Tabs ----------------------------
+      function activateTab(tab){ const panel=document.getElementById(`tab-${tab}`); if(!panel) return; document.querySelectorAll('.tab-panel').forEach(p=>p.classList.add('hidden')); panel.classList.remove('hidden'); document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('bg-slate-900','text-white')); const current=document.querySelector(`[data-tab="${tab}"]`); if(current) current.classList.add('bg-slate-900','text-white'); if(tab==='dashboard') loadDashboard(); if(tab==='tasks') loadTasks(); if(tab==='admin') loadAdmin(); }
+      document.querySelector('nav .inline-flex').addEventListener('click', (e)=>{ const btn=e.target.closest('.tab-btn'); if(!btn) return; e.preventDefault(); activateTab(btn.dataset.tab); });
+
+      // -------------------------- Dashboard -----------------------
+      async function loadDashboard(){
+  try{
+    const stats = await api('/api/stats/sector');
+    const labels = stats.map(s=>s.sector_label||s.sector);
+    const data = stats.map(s=>s.total);
+    $('#emptySectorMsg').classList.toggle('hidden', stats.length>0);
+
+    const ctx = document.getElementById('sectorChart');
+    if (state.chart) state.chart.destroy();
+    state.chart = new Chart(ctx, {
+      type:'pie',
+      data:{ labels, datasets:[{ data }] },
+      options:{ plugins:{ legend:{ position:'bottom' } } }
+    });
+
+    const recent = await api('/api/tasks/recent?limit=5');
+    const ul = $('#recentList');
+    ul.innerHTML = '';
+    $('#emptyRecentMsg').classList.toggle('hidden', recent.length>0);
+    recent.forEach(t=>{
+      const sector = t.sector_label||t.sector||t.sector_code||'-';
+      const li = document.createElement('li');
+      li.className = 'py-3 flex items-start gap-3';
+      li.innerHTML = `
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="font-medium">${escapeHtml(t.title)}</span>
+            ${priorityBadge(t.priority)}${statusBadge(t.status)}
+          </div>
+          <div class="text-xs text-slate-600 mt-0.5">
+            Setor: ${escapeHtml(sector)} · Resp.: ${escapeHtml(t.responsavel||'-')}
+            · Prazo: ${fmtDateOnly(t.due_date)} · Criado: ${fmtDate(t.created_at)}
+          </div>
+          ${t.description ? `<div class="text-sm text-slate-700 mt-1">${escapeHtml(t.description)}</div>` : ''}
+        </div>`;
+      ul.appendChild(li);
+    });
+  }catch(e){
+    showToast(e.message||'Erro ao carregar o dashboard','err');
+  }
+}
+      // -------------------------- Listagem/CRUD -------------------
+      async function loadTasks(page=state.page, query=state.lastQuery){ state.page=page; state.lastQuery=query; const limit=state.pageSize; const offset=(page-1)*limit; const params=new URLSearchParams({ limit, offset }); if(query.q) params.set('q',query.q); if(query.sector) params.set('sector',query.sector); if(query.priority) params.set('priority',query.priority); if(query.status) params.set('status',query.status); if(query.due_from) params.set('due_from',query.due_from); if(query.due_to) params.set('due_to',query.due_to); try{ const tasks=await api(`/api/tasks?${params.toString()}`); const tbody=document.getElementById('tasksTbody'); tbody.innerHTML=''; if(!tasks.length && page>1) return loadTasks(page-1,query); tasks.forEach(t=>tbody.appendChild(renderTaskRow(t))); document.getElementById('prevPage').disabled=page<=1; document.getElementById('nextPage').disabled=tasks.length<limit; document.getElementById('pageInfo').textContent=`Página ${page}`; } catch(e){ showToast(e.message||'Erro ao carregar tarefas','err'); } }
+
+     
+function renderTaskRow(t){
+  const tr = document.createElement('tr');
+  tr.dataset.id = t.id;
+  const sector = t.sector_label||t.sector||t.sector_code||'-';
+  tr.innerHTML = `
+    <td class="p-3 align-top text-slate-600">${t.id}</td>
+    <td class="p-3 align-top">
+      <div class="font-medium">${escapeHtml(t.title)}</div>
+      ${t.description ? `<div class="text-xs text-slate-600 mt-1">${escapeHtml(t.description)}</div>` : ''}
+    </td>
+    <td class="p-3 align-top">${escapeHtml(t.responsavel||'-')}</td>
+    <td class="p-3 align-top">${escapeHtml(sector)}</td>
+    <td class="p-3 align-top">${priorityBadge(t.priority)}</td>
+    <td class="p-3 align-top">${statusBadge(t.status)}</td>
+    <td class="p-3 align-top">${fmtDateOnly(t.due_date)}</td>
+    <td class="p-3 align-top text-slate-600">${fmtDate(t.created_at)}</td>
+    <td class="p-3 align-top text-slate-600">${fmtDate(t.updated_at)}</td>
+    <td class="p-3 align-top">
+      <div class="flex flex-wrap gap-2">
+        ${state.canEdit
+          ? `<button class="btn-edit px-3 py-1.5 rounded-md border hover:bg-slate-50">Editar</button>
+             <button class="btn-del px-3 py-1.5 rounded-md border text-red-700 hover:bg-red-50">Excluir</button>`
+          : `<span class="text-xs text-slate-500">Sem permissão para editar</span>`}
+      </div>
+    </td>`;
+
+  if (state.canEdit){
+    const btnE = tr.querySelector('.btn-edit');
+    const btnD = tr.querySelector('.btn-del');
+    if (btnE) btnE.addEventListener('click',()=>switchToEdit(tr, t));
+    if (btnD) btnD.addEventListener('click',()=>deleteTask(t.id));
+  }
+  return tr;
+}
+
+
+function switchToEdit(tr, t){
+  const sectorCode = t.sector_code || '';
+  tr.innerHTML = `
+    <td class="p-3 align-top text-slate-600">${t.id}</td>
+    <td class="p-3 align-top">
+      <input class="w-full border rounded-md px-2 py-1" id="e-title" value="${escapeHtml(t.title)}" />
+      <textarea class="w-full border rounded-md px-2 py-1 mt-2" rows="2" id="e-desc">${escapeHtml(t.description||'')}</textarea>
+    </td>
+    <td class="p-3 align-top">
+      <input class="w-full border rounded-md px-2 py-1" id="e-resp" value="${escapeHtml(t.responsavel||'')}" />
+    </td>
+    <td class="p-3 align-top">
+      <select id="e-sector" class="border rounded-md px-2 py-1">${sectorOptions(sectorCode)}</select>
+    </td>
+    <td class="p-3 align-top">
+      <select id="e-priority" class="border rounded-md px-2 py-1">
+        <option value="alta"  ${t.priority==='alta'?'selected':''}>Alta</option>
+        <option value="media" ${t.priority==='media'?'selected':''}>Média</option>
+        <option value="baixa" ${t.priority==='baixa'?'selected':''}>Baixa</option>
+      </select>
+    </td>
+    <td class="p-3 align-top">
+      <select id="e-status" class="border rounded-md px-2 py-1">
+        <option value="em_andamento" ${t.status==='em_andamento'?'selected':''}>Em andamento</option>
+        <option value="concluida"    ${t.status==='concluida'?'selected':''}>Concluída</option>
+      </select>
+    </td>
+    <td class="p-3 align-top">
+      <input id="e-due" type="date" class="border rounded-md px-2 py-1" value="${t.due_date||''}" />
+    </td>
+    <td class="p-3 align-top text-slate-600">${fmtDate(t.created_at)}</td>
+    <td class="p-3 align-top text-slate-600">${fmtDate(t.updated_at)}</td>
+    <td class="p-3 align-top">
+      <div class="flex flex-wrap gap-2">
+        <button class="btn-save px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Salvar</button>
+        <button class="btn-cancel px-3 py-1.5 rounded-md border hover:bg-slate-50">Cancelar</button>
+      </div>
+    </td>`;
+
+  const save = tr.querySelector('.btn-save');
+  const cancel = tr.querySelector('.btn-cancel');
+
+  if (save) save.addEventListener('click', async ()=>{
+    const body = {
+      title:        tr.querySelector('#e-title').value.trim(),
+      description:  tr.querySelector('#e-desc').value.trim(),
+      responsavel:  tr.querySelector('#e-resp').value.trim(),
+      sector_code:  tr.querySelector('#e-sector').value,
+      priority:     tr.querySelector('#e-priority').value,
+      status:       tr.querySelector('#e-status').value,
+      due_date:     tr.querySelector('#e-due').value
+    };
+    try{
+      await api(`/api/tasks/${t.id}`, { method:'PUT', body: JSON.stringify(body) });
+      showToast('Tarefa atualizada');
+      loadTasks(state.page, state.lastQuery);
+      loadDashboard();
+    }catch(e){
+      showToast(e.message||'Erro ao salvar','err');
+    }
+  });
+
+  if (cancel) cancel.addEventListener('click', ()=>loadTasks(state.page, state.lastQuery));
+}
+
+      async function deleteTask(id){ if(!confirm('Excluir esta tarefa?')) return; try{ await api(`/api/tasks/${id}`, { method:'DELETE' }); showToast('Tarefa excluída'); loadTasks(state.page, state.lastQuery); loadDashboard(); }catch(e){ showToast(e.message||'Erro ao excluir','err'); } }
+
+      // -------------------------- Adição --------------------------
+      document.getElementById('addForm').addEventListener('submit', async (ev)=>{ ev.preventDefault(); const body={ title: document.getElementById('title').value.trim(), description: document.getElementById('description').value.trim(), sector_code: document.getElementById('sector').value, priority: document.getElementById('priority').value, responsavel: document.getElementById('responsavel').value.trim(), due_date: document.getElementById('due_date').value, status: document.getElementById('status').value }; try{ await api('/api/tasks', { method:'POST', body: JSON.stringify(body)}); showToast('Tarefa adicionada'); ev.target.reset(); loadDashboard(); if (!document.getElementById('tab-tasks').classList.contains('hidden')) loadTasks(); }catch(e){ showToast(e.message||'Erro ao adicionar','err'); } });
+
+      // -------------------------- Filtros -------------------------
+      document.getElementById('btnFilter').addEventListener('click', ()=>{ const q=document.getElementById('searchQ').value.trim(); const sector=document.getElementById('filterSector').value; const priority=document.getElementById('filterPriority').value; const status=document.getElementById('filterStatus').value; const due_from=document.getElementById('filterDueFrom').value; const due_to=document.getElementById('filterDueTo').value; loadTasks(1, { q, sector, priority, status, due_from, due_to }); });
+      document.getElementById('btnClear').addEventListener('click', ()=>{ document.getElementById('searchQ').value=''; document.getElementById('filterSector').value=''; document.getElementById('filterPriority').value=''; document.getElementById('filterStatus').value=''; document.getElementById('filterDueFrom').value=''; document.getElementById('filterDueTo').value=''; loadTasks(1, { q:'', sector:'', priority:'', status:'', due_from:'', due_to:'' }); });
+      document.getElementById('prevPage').addEventListener('click', ()=>loadTasks(state.page-1, state.lastQuery));
+      document.getElementById('nextPage').addEventListener('click', ()=>loadTasks(state.page+1, state.lastQuery));
+
+      // -------------------------- Setores -------------------------
+      async function loadSectors(){ try{ state.sectors=await api('/api/sectors'); const sectorSel=document.getElementById('sector'); sectorSel.innerHTML='<option value="" disabled selected>Selecione</option>'+sectorOptions(); const filterSel=document.getElementById('filterSector'); filterSel.innerHTML='<option value="">Todos os setores</option>'+sectorOptions(); }catch(e){ showToast('Erro ao carregar setores','err'); } }
+
+      // -------------------------- ADMIN ---------------------------
+      async function loadAdmin(){ try{ const metrics=await api('/api/admin/metrics'); document.getElementById('m-total-accesses').textContent=metrics.total_accesses; document.getElementById('m-total-changes').textContent=metrics.total_changes; document.getElementById('m-active-total').textContent=metrics.active_sessions.total; document.getElementById('m-active-breakdown').textContent=`admin: ${metrics.active_sessions.admin} · supervisor: ${metrics.active_sessions.supervisor} · básico: ${metrics.active_sessions.guest}`; document.getElementById('m-passwords').textContent=metrics.senhas_ativas; await loadSupervisors(); const accesses=await api('/api/admin/accesses?limit=100'); const at=document.getElementById('accessesTbody'); at.innerHTML=''; accesses.forEach(a=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td class="p-3 align-top text-slate-600 whitespace-nowrap">${fmtDate(a.ts)}</td><td class="p-3 align-top">${escapeHtml(a.action)}</td><td class="p-3 align-top">${escapeHtml(a.username||'-')}</td><td class="p-3 align-top">${escapeHtml(a.role||'-')}</td><td class="p-3 align-top">${escapeHtml(a.ip||'-')}</td><td class="p-3 align-top">${escapeHtml(a.user_agent||'-')}</td>`; at.appendChild(tr); }); const audits=await api('/api/admin/audits?limit=100'); const au=document.getElementById('auditsTbody'); au.innerHTML=''; audits.forEach(a=>{ const tr=document.createElement('tr'); const details=a.details?JSON.stringify(a.details):'-'; tr.innerHTML=`<td class="p-3 align-top text-slate-600 whitespace-nowrap">${fmtDate(a.ts)}</td><td class="p-3 align-top">${escapeHtml(a.action)}</td><td class="p-3 align-top">${a.task_id??'-'}</td><td class="p-3 align-top">${escapeHtml(a.username||'-')}</td><td class="p-3 align-top">${escapeHtml(a.role||'-')}</td><td class="p-3 align-top max-w-[420px]"><div class="truncate" title="${escapeHtml(details)}">${escapeHtml(details)}</div></td>`; au.appendChild(tr); }); }catch(e){ showToast(e.message||'Erro ao carregar dados admin','err'); } }
+      document.getElementById('btnExportAccess').addEventListener('click', ()=>{ window.location='/api/admin/export?type=access'; });
+      document.getElementById('btnExportAudit').addEventListener('click', ()=>{ window.location='/api/admin/export?type=audit'; });
+
+      // ----- Gestão de Supervisores -----
+      async function loadSupervisors(){ try{ const list=await api('/api/admin/supervisors'); const tbody=document.getElementById('supTbody'); tbody.innerHTML=''; list.forEach(s=>{ const tr=document.createElement('tr'); tr.innerHTML = `
+          <td class="p-3 align-top">${escapeHtml(s.username)}</td>
+          <td class="p-3 align-top text-slate-600">${fmtDate(s.created_at)}</td>
+          <td class="p-3 align-top text-slate-600">${s.updated_at ? fmtDate(s.updated_at) : '-'}</td>
+          <td class="p-3 align-top">${s.is_active ? '<span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700">ativo</span>' : '<span class="px-2 py-0.5 rounded text-xs bg-slate-200 text-slate-700">inativo</span>'}</td>
+          <td class="p-3 align-top">${s.online ? '<span class="px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700">online</span>' : '<span class="px-2 py-0.5 rounded text-xs bg-slate-200 text-slate-700">offline</span>'}</td>
+          <td class="p-3 align-top"><div class="flex flex-wrap gap-2">
+            <button class="px-3 py-1.5 rounded-md border hover:bg-slate-50 btn-pass">Alterar senha</button>
+            <button class="px-3 py-1.5 rounded-md border hover:bg-slate-50 btn-toggle">${s.is_active ? 'Desativar' : 'Ativar'}</button>
+            <button class="px-3 py-1.5 rounded-md border text-red-700 hover:bg-red-50 btn-del">Excluir</button>
+          </div></td>`;
+          tr.querySelector('.btn-pass').addEventListener('click', async()=>{ const np=prompt(`Nova senha para ${s.username}`); if(!np) return; try{ await api(`/api/admin/supervisors/${encodeURIComponent(s.username)}`, { method:'PUT', body: JSON.stringify({ password: np })}); showToast('Senha atualizada'); loadSupervisors(); }catch(e){ showToast(e.message||'Erro ao alterar senha','err'); }});
+          tr.querySelector('.btn-toggle').addEventListener('click', async()=>{ try{ await api(`/api/admin/supervisors/${encodeURIComponent(s.username)}`, { method:'PUT', body: JSON.stringify({ is_active: !s.is_active })}); showToast('Status atualizado'); loadSupervisors(); }catch(e){ showToast(e.message||'Erro ao atualizar status','err'); }});
+          tr.querySelector('.btn-del').addEventListener('click', async()=>{ if(!confirm(`Remover supervisor ${s.username}?`)) return; try{ await api(`/api/admin/supervisors/${encodeURIComponent(s.username)}`, { method:'DELETE' }); showToast('Supervisor removido'); loadSupervisors(); }catch(e){ showToast(e.message||'Erro ao remover','err'); }});
+          tbody.appendChild(tr); }); }catch(e){ showToast(e.message||'Erro ao listar supervisores','err'); } }
+
+      document.getElementById('supForm').addEventListener('submit', async (ev)=>{ ev.preventDefault(); const u=document.getElementById('supUser').value.trim(); const p=document.getElementById('supPass').value; if(!u||!p) return; try{ await api('/api/admin/supervisors', { method:'POST', body: JSON.stringify({ username:u, password:p })}); showToast('Supervisor criado'); ev.target.reset(); loadSupervisors(); }catch(e){ showToast(e.message||'Erro ao criar supervisor','err'); } });
+      document.getElementById('btnReloadSup').addEventListener('click', loadSupervisors);
+
+      // -------------------------- Boot ----------------------------
+      (async function boot(){ try{ const me=await api('/api/me'); state.me=me; state.isAdmin=me.role==='admin'; state.canEdit = (me.role==='admin' || me.role==='supervisor'); document.getElementById('userBadge').textContent = me.role==='admin' ? 'Admin' : (me.role==='supervisor' ? 'Supervisor' : 'Usuário básico'); if(state.isAdmin) document.getElementById('adminTabBtn').classList.remove('hidden'); }catch{ return; } await loadSectors(); activateTab('dashboard'); document.getElementById('refreshDashboard').addEventListener('click', loadDashboard); document.getElementById('refreshRecent').addEventListener('click', loadDashboard); document.getElementById('refreshDashboard').addEventListener('click', loadDashboard);
+document.getElementById('refreshRecent').addEventListener('click', loadDashboard);
+ })();
+    </script>
+  </body>
+</html>
