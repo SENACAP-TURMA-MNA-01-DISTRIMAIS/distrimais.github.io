@@ -31,8 +31,18 @@
           </p>
 
           <form method="POST" action="/login" class="flex items-center gap-3">
-            <input type="hidden" name="action" value="guest" />
-            <input type="hidden" name="next" id="next-guest" value="/app" />
+            <input type="hidden" name="next" id="next-guest" value="/" />
+            <input type="hidden" name="next" id="next-pass"  value="/" />
+<script>
+  // mantém suporte ao ?next=... se vier na URL
+  (function(){
+    const p = new URLSearchParams(location.search);
+    const next = p.get('next') || '/';
+    document.getElementById('next-guest').value = next;
+    document.getElementById('next-pass').value  = next;
+  })();
+</script>
+
             <button
               class="px-4 py-2 rounded-md bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800">
               Continuar como usuário básico
