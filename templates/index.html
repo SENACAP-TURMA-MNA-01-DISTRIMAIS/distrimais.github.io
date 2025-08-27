@@ -265,33 +265,131 @@
       async function loadDashboard(){ try{ const stats=await api('/api/stats/sector'); const labels=stats.map(s=>s.sector_label||s.sector); const data=stats.map(s=>s.total); $('#emptySectorMsg').classList.toggle('hidden', stats.length>0); const ctx=document.getElementById('sectorChart'); if(state.chart) state.chart.destroy(); state.chart=new Chart(ctx,{ type:'pie', data:{ labels, datasets:[{ data }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:12 }}}}}); const recent=await api('/api/tasks/recent?limit=5'); const ul=$('#recentList'); ul.innerHTML=''; $('#emptyRecentMsg').classList.toggle('hidden', recent.length>0); recent.forEach(t=>{ const sector=t.sector_label||t.sector||t.sector_code||'-'; const li=document.createElement('li'); li.className='py-3 flex items-start gap-3'; li.innerHTML=`<div class="flex-1 min-w-0"><div class="flex flex-wrap items-center gap-2"><span class="font-medium">${escapeHtml(t.title)}</span>${priorityBadge(t.priority)}${statusBadge(t.status)}</div><div class="text-xs text-slate-600 mt-0.5">Setor: ${escapeHtml(sector)} · Resp.: ${escapeHtml(t.responsavel||'-')} · Prazo: ${fmtDateOnly(t.due_date)} · Criado: ${fmtDate(t.created_at)}</div>${t.description?`<div class=\"text-sm text-slate-700 mt-1\">${escapeHtml(t.description)}</div>`:''}</div>`; ul.appendChild(li); }); } catch(e){ showToast(e.message||'Erro ao carregar o dashboard','err'); } }
 
       // -------------------------- Listagem/CRUD -------------------
-      async function loadTasks(page=state.page, query=state.lastQuery){ state.page=page; state.lastQuery=query; const limit=state.pageSize; const offset=(page-1)*limit; const params=new URLSearchParams({ limit, offset }); if(query.q) params.set('q',query.q); if(query.sector) params.set('sector',query.sector); if(query.priority) params.set('priority',query.priority); if(query.status) params.set('status',query.status); if(query.due_from) params.set('due_from',query.due_from); if(query.due_to) params.set('due_to',query.due_to); try{ const tasks=await api(`/api/tasks?${params.toString()}`); const tbody=document.getElementById('tasksTbody'); tbody.innerHTML=''; if(!tasks.length && page>1) return loadTasks(page-1,query); tasks.forEach(t=>tbody.appendChild(renderTaskRow(t))); document.getElementById('prevPage').disabled=page<=1; document.getElementById('nextPage').disabled=tasks.length<limit; document.getElementById('pageInfo').textContent=`Página ${page}`; } catch(e){ showToast(e.message||'Erro ao carregar tarefas','err'); } }
+     // guarda o último lote para recuperar o objeto da linha
+state.cachedTasks = [];
 
-      function renderTaskRow(t){ const tr=document.createElement('tr'); tr.dataset.id=t.id; const sector=t.sector_label||t.sector||t.sector_code||'-'; tr.innerHTML=`
-        <td class=\"p-2 sm:p-3 align-top text-slate-600\">${t.id}</td>
-        <td class=\"p-2 sm:p-3 align-top\"><div class=\"font-medium\">${escapeHtml(t.title)}</div>${t.description?`<div class=\\"text-xs text-slate-600 mt-1\\">${escapeHtml(t.description)}</div>`:''}</td>
-        <td class=\"p-2 sm:p-3 align-top\">${escapeHtml(t.responsavel||'-')}</td>
-        <td class=\"p-2 sm:p-3 align-top\">${escapeHtml(sector)}</td>
-        <td class=\"p-2 sm:p-3 align-top\">${priorityBadge(t.priority)}</td>
-        <td class=\"p-2 sm:p-3 align-top\">${statusBadge(t.status)}</td>
-        <td class=\"p-2 sm:p-3 align-top\">${fmtDateOnly(t.due_date)}</td>
-        <td class=\"p-2 sm:p-3 align-top text-slate-600\">${fmtDate(t.created_at)}</td>
-        <td class=\"p-2 sm:p-3 align-top text-slate-600\">${fmtDate(t.updated_at)}</td>
-        <td class=\"p-2 sm:p-3 align-top\"><div class=\"flex flex-wrap gap-2\">${state.canEdit?`<button class=\\"btn-edit px-3 py-1.5 rounded-md border hover:bg-slate-50\\">Editar</button><button class=\\"btn-del px-3 py-1.5 rounded-md border text-red-700 hover:bg-red-50\\">Excluir</button>`:`<span class=\\"text-xs text-slate-500\\">Sem permissão</span>`}</div></td>`; if(state.canEdit){ const be=tr.querySelector('.btn-edit'); const bd=tr.querySelector('.btn-del'); if(be) be.addEventListener('click',()=>switchToEdit(tr,t)); if(bd) bd.addEventListener('click',()=>deleteTask(t.id)); } return tr; }
+async function loadTasks(page = state.page, query = state.lastQuery){
+  state.page = page; state.lastQuery = query;
+  const limit = state.pageSize; const offset = (page-1)*limit;
+  const params = new URLSearchParams({limit, offset});
+  if(query.q) params.set('q', query.q);
+  if(query.sector) params.set('sector', query.sector);
+  if(query.priority) params.set('priority', query.priority);
+  if(query.status) params.set('status', query.status);
+  if(query.due_from) params.set('due_from', query.due_from);
+  if(query.due_to) params.set('due_to', query.due_to);
 
-      function switchToEdit(tr,t){ const sectorCode=t.sector_code||''; tr.innerHTML=`
-        <td class=\"p-2 sm:p-3 align-top text-slate-600\">${t.id}</td>
-        <td class=\"p-2 sm:p-3 align-top\"><input class=\"w-full border rounded-md px-2 py-1\" value=\"${escapeHtml(t.title)}\" id=\"e-title\" /><textarea class=\"w-full border rounded-md px-2 py-1 mt-2\" rows=\"2\" id=\"e-desc\">${escapeHtml(t.description||'')}</textarea></td>
-        <td class=\"p-2 sm:p-3 align-top\"><input class=\"w-full border rounded-md px-2 py-1\" value=\"${escapeHtml(t.responsavel||'')}\" id=\"e-resp\" /></td>
-        <td class=\"p-2 sm:p-3 align-top\"><select id=\"e-sector\" class=\"border rounded-md px-2 py-1\">${sectorOptions(sectorCode)}</select></td>
-        <td class=\"p-2 sm:p-3 align-top\"><select id=\"e-priority\" class=\"border rounded-md px-2 py-1\"><option value=\"alta\" ${t.priority==='alta'?'selected':''}>Alta</option><option value=\"media\" ${t.priority==='media'?'selected':''}>Média</option><option value=\"baixa\" ${t.priority==='baixa'?'selected':''}>Baixa</option></select></td>
-        <td class=\"p-2 sm:p-3 align-top\"><select id=\"e-status\" class=\"border rounded-md px-2 py-1\"><option value=\"em_andamento\" ${t.status==='em_andamento'?'selected':''}>Em andamento</option><option value=\"concluida\" ${t.status==='concluida'?'selected':''}>Concluída</option></select></td>
-        <td class=\"p-2 sm:p-3 align-top\"><input id=\"e-due\" type=\"date\" class=\"border rounded-md px-2 py-1\" value=\"${t.due_date||''}\" /></td>
-        <td class=\"p-2 sm:p-3 align-top text-slate-600\">${fmtDate(t.created_at)}</td>
-        <td class=\"p-2 sm:p-3 align-top text-slate-600\">${fmtDate(t.updated_at)}</td>
-        <td class=\"p-2 sm:p-3 align-top\"><div class=\"flex flex-wrap gap-2\"><button class=\"btn-save px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700\">Salvar</button><button class=\"btn-cancel px-3 py-1.5 rounded-md border hover:bg-slate-50\">Cancelar</button></div></td>`;
-        const save=tr.querySelector('.btn-save'); const cancel=tr.querySelector('.btn-cancel'); if(save) save.addEventListener('click', async ()=>{ const body={ title: tr.querySelector('#e-title').value.trim(), description: tr.querySelector('#e-desc').value.trim(), responsavel: tr.querySelector('#e-resp').value.trim(), sector_code: tr.querySelector('#e-sector').value, priority: tr.querySelector('#e-priority').value, status: tr.querySelector('#e-status').value, due_date: tr.querySelector('#e-due').value }; try{ await api(`/api/tasks/${t.id}`, { method:'PUT', body: JSON.stringify(body)}); showToast('Tarefa atualizada'); loadTasks(state.page, state.lastQuery); loadDashboard(); }catch(e){ showToast(e.message||'Erro ao salvar','err'); } }); if(cancel) cancel.addEventListener('click', ()=>loadTasks(state.page, state.lastQuery)); }
+  const tasks = await api(`/api/tasks?${params.toString()}`);
+  state.cachedTasks = tasks; // <<-- importante
 
+  const tbody = document.getElementById('tasksTbody');
+  tbody.innerHTML = '';
+  tasks.forEach(t => tbody.appendChild(renderTaskRow(t)));
+  document.getElementById('prevPage').disabled = page<=1;
+  document.getElementById('nextPage').disabled = tasks.length<limit;
+  document.getElementById('pageInfo').textContent = `Página ${page}`;
+}
+
+// clique nos botões da tabela (funciona para linhas novas também)
+document.getElementById('tasksTbody').addEventListener('click', (ev)=>{
+  const tr = ev.target.closest('tr');
+  if (!tr) return;
+  const id = Number(tr.dataset.id);
+  const t = state.cachedTasks.find(x => x.id === id);
+  if (!t) return;
+
+  if (ev.target.closest('.btn-edit')) { switchToEdit(tr, t); }
+  if (ev.target.closest('.btn-del'))  { deleteTask(id); }
+});
+      function renderTaskRow(t){
+  const tr = document.createElement('tr');
+  tr.dataset.id = t.id;
+  const sector = t.sector_label || t.sector || t.sector_code || '-';
+  tr.innerHTML = `
+    <td class="p-2 sm:p-3 align-top text-slate-600">${t.id}</td>
+    <td class="p-2 sm:p-3 align-top">
+      <div class="font-medium">${escapeHtml(t.title)}</div>
+      ${t.description ? `<div class="text-xs text-slate-600 mt-1">${escapeHtml(t.description)}</div>` : ''}
+    </td>
+    <td class="p-2 sm:p-3 align-top">${escapeHtml(t.responsavel || '-')}</td>
+    <td class="p-2 sm:p-3 align-top">${escapeHtml(sector)}</td>
+    <td class="p-2 sm:p-3 align-top">${priorityBadge(t.priority)}</td>
+    <td class="p-2 sm:p-3 align-top">${statusBadge(t.status)}</td>
+    <td class="p-2 sm:p-3 align-top">${fmtDateOnly(t.due_date)}</td>
+    <td class="p-2 sm:p-3 align-top text-slate-600">${fmtDate(t.created_at)}</td>
+    <td class="p-2 sm:p-3 align-top text-slate-600">${fmtDate(t.updated_at)}</td>
+    <td class="p-2 sm:p-3 align-top">
+      <div class="flex flex-wrap gap-2">
+        ${state.canEdit
+          ? `<button class="btn-edit px-3 py-1.5 rounded-md border hover:bg-slate-50">Editar</button>
+             <button class="btn-del px-3 py-1.5 rounded-md border text-red-700 hover:bg-red-50">Excluir</button>`
+          : `<span class="text-xs text-slate-500">Sem permissão</span>`}
+      </div>
+    </td>`;
+  return tr;
+}
+      function switchToEdit(tr, t){
+  const sectorCode = t.sector_code || '';
+  tr.innerHTML = `
+    <td class="p-2 sm:p-3 align-top text-slate-600">${t.id}</td>
+    <td class="p-2 sm:p-3 align-top">
+      <input id="e-title" class="w-full border rounded-md px-2 py-1" value="${escapeHtml(t.title)}" />
+      <textarea id="e-desc" class="w-full border rounded-md px-2 py-1 mt-2" rows="2">${escapeHtml(t.description || '')}</textarea>
+    </td>
+    <td class="p-2 sm:p-3 align-top">
+      <input id="e-resp" class="w-full border rounded-md px-2 py-1" value="${escapeHtml(t.responsavel || '')}" />
+    </td>
+    <td class="p-2 sm:p-3 align-top">
+      <select id="e-sector" class="border rounded-md px-2 py-1">${sectorOptions(sectorCode)}</select>
+    </td>
+    <td class="p-2 sm:p-3 align-top">
+      <select id="e-priority" class="border rounded-md px-2 py-1">
+        <option value="alta"  ${t.priority==='alta'?'selected':''}>Alta</option>
+        <option value="media" ${t.priority==='media'?'selected':''}>Média</option>
+        <option value="baixa" ${t.priority==='baixa'?'selected':''}>Baixa</option>
+      </select>
+    </td>
+    <td class="p-2 sm:p-3 align-top">
+      <select id="e-status" class="border rounded-md px-2 py-1">
+        <option value="em_andamento" ${t.status==='em_andamento'?'selected':''}>Em andamento</option>
+        <option value="concluida" ${t.status==='concluida'?'selected':''}>Concluída</option>
+      </select>
+    </td>
+    <td class="p-2 sm:p-3 align-top">
+      <input id="e-due" type="date" class="border rounded-md px-2 py-1" value="${t.due_date || ''}" />
+    </td>
+    <td class="p-2 sm:p-3 align-top text-slate-600">${fmtDate(t.created_at)}</td>
+    <td class="p-2 sm:p-3 align-top text-slate-600">${fmtDate(t.updated_at)}</td>
+    <td class="p-2 sm:p-3 align-top">
+      <div class="flex flex-wrap gap-2">
+        <button class="btn-save px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Salvar</button>
+        <button class="btn-cancel px-3 py-1.5 rounded-md border hover:bg-slate-50">Cancelar</button>
+      </div>
+    </td>`;
+
+  const save = tr.querySelector('.btn-save');
+  const cancel = tr.querySelector('.btn-cancel');
+  if (save) save.addEventListener('click', async ()=>{
+    const body = {
+      title:       tr.querySelector('#e-title').value.trim(),
+      description: tr.querySelector('#e-desc').value.trim(),
+      responsavel: tr.querySelector('#e-resp').value.trim(),
+      sector_code: tr.querySelector('#e-sector').value,
+      priority:    tr.querySelector('#e-priority').value,
+      status:      tr.querySelector('#e-status').value,
+      due_date:    tr.querySelector('#e-due').value
+    };
+    try{
+      await api(`/api/tasks/${t.id}`, { method:'PUT', body: JSON.stringify(body) });
+      showToast('Tarefa atualizada');
+      loadTasks(state.page, state.lastQuery);
+      loadDashboard();
+    }catch(e){
+      showToast(e.message || 'Erro ao salvar','err');
+    }
+  });
+  if (cancel) cancel.addEventListener('click', ()=>loadTasks(state.page, state.lastQuery));
+}
       async function deleteTask(id){ if(!confirm('Excluir esta tarefa?')) return; try{ await api(`/api/tasks/${id}`, { method:'DELETE' }); showToast('Tarefa excluída'); loadTasks(state.page, state.lastQuery); loadDashboard(); }catch(e){ showToast(e.message||'Erro ao excluir','err'); } }
 
       // -------------------------- Adição --------------------------
