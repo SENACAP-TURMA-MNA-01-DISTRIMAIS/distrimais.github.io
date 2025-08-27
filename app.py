@@ -217,6 +217,15 @@ def root():
         return redirect(url_for("login"))
     return render_template("index.html")
 
+# >>> ADICIONE ESTE BLOCO AQUI <<<
+@app.route("/app")
+def app_alias():
+    # garante que só entra logado; mantém ?next=/app se não estiver logado
+    if "role" not in session:
+        return redirect(url_for("login", next="/app"))
+    return render_template("index.html")
+# <<< FIM DO BLOCO >>>
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
